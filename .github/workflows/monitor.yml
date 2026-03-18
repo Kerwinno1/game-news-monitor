@@ -1,0 +1,14 @@
+name: 自动检查官网更新
+on:
+  schedule:
+    - cron: '*/30 * * * *'  # 每30分钟执行一次
+  workflow_dispatch:        # 允许你点击按钮手动强制执行
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 激活监控
+        run: |
+          echo "正在巡逻鸣潮与无畏契约官网..."
+          curl -s https://api.rss2json.com/v1/api.json?rss_url=https://www.gamersky.com/rss/news.xml > /dev/null
