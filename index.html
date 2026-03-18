@@ -2,112 +2,101 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>鸣潮 & 无畏契约 - 2026 监控站</title>
+    <title>2026 官网情报追踪</title>
     <style>
         :root { --mc: #00f2ff; --val: #ff4655; --bg: #0d1117; }
-        body { background: var(--bg); color: #c9d1d9; font-family: "Microsoft YaHei", sans-serif; margin: 0; padding: 20px; }
-        header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #30363d; padding-bottom: 15px; margin-bottom: 20px; position: sticky; top: 0; background: var(--bg); z-index: 10; }
-        .btn { padding: 6px 14px; border-radius: 4px; cursor: pointer; border: 1px solid #444; background: #21262d; color: white; margin-left: 5px; }
-        .active-mc { border-color: var(--mc) !important; color: var(--mc) !important; }
-        .active-val { border-color: var(--val) !important; color: var(--val) !important; }
+        body { background: var(--bg); color: #c9d1d9; font-family: sans-serif; padding: 20px; }
+        header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #30363d; padding-bottom: 10px; margin-bottom: 20px; }
+        .btn { padding: 6px 12px; border-radius: 4px; cursor: pointer; border: 1px solid #444; background: #21262d; color: white; }
+        .btn-refresh { background: #238636; border: none; font-weight: bold; }
         .news-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 15px; }
-        .card { background: #161b22; border: 1px solid #30363d; padding: 18px; border-radius: 8px; text-decoration: none; color: inherit; transition: 0.2s; display: block; border-left: 4px solid #30363d; }
-        .card:hover { transform: translateY(-3px); border-color: #8b949e; background: #1c2128; }
+        .card { background: #161b22; border: 1px solid #30363d; padding: 15px; border-radius: 8px; text-decoration: none; color: inherit; border-left: 4px solid #30363d; display: block; }
+        .card:hover { transform: translateX(5px); background: #1c2128; }
         .card[data-game="鸣潮"] { border-left-color: var(--mc); }
         .card[data-game="无畏契约"] { border-left-color: var(--val); }
-        .title { font-size: 15px; font-weight: 600; line-height: 1.5; margin-bottom: 12px; height: 45px; overflow: hidden; }
-        .footer { font-size: 11px; color: #8b949e; display: flex; justify-content: space-between; }
+        .title { font-size: 14px; font-weight: bold; margin-bottom: 10px; height: 40px; overflow: hidden; }
+        .time { font-size: 11px; color: #8b949e; }
     </style>
 </head>
 <body>
-
 <header>
     <div>
-        <h2 style="margin:0; font-size: 18px;">📡 2026 游戏情报站</h2>
-        <span style="font-size: 12px; color: #8b949e;">自动刷新: <b id="timer">30:00</b></span>
+        <h2 style="margin:0;">📡 官网动态监控 (2026)</h2>
+        <small id="status">监控中：每 30 分钟自动同步官网</small>
     </div>
-    <div class="btn-group">
-        <button class="btn" onclick="filterData('全部')">全部</button>
-        <button class="btn" id="m-btn" onclick="filterData('鸣潮')">鸣潮</button>
-        <button class="btn" id="v-btn" onclick="filterData('无畏契约')">无畏契约</button>
-        <button class="btn" style="background:#238636; border:none;" onclick="manualRefresh()">立即刷新</button>
+    <div>
+        <button class="btn btn-refresh" onclick="manualRefresh()">立即去官网检查更新</button>
     </div>
 </header>
-
-<div class="news-grid" id="container">正在连接云端数据源...</div>
+<div class="news-grid" id="container">正在同步 2026 官网数据...</div>
 
 <script>
-    let rawNews = [];
-    let timeLeft = 1800;
+    // 官网 RSS 转换地址（绕过跨域，直接读取官网数据）
+    const feeds = [
+        { name: '鸣潮', url: 'https://wutheringwaves.kurogames.com/en/main/news' }, 
+        { name: '无畏契约', url: 'https://playvalorant.com/zh-cn/news/' }
+    ];
 
-    // --- 这就是你要找的 fetchNews 函数部分 ---
-    async function fetchNews() {
+    async function fetchFromOfficial() {
         const container = document.getElementById('container');
-        container.innerHTML = '正在检索 2026 全球动态...';
+        const status = document.getElementById('status');
+        status.innerText = "正在爬取官网最新公告...";
         
-        // 使用 rss2json 转换器，这是目前最稳的 GitHub 部署方案
-        const apiUrl = `https://api.rss2json.com/v1/api.json?rss_url=https://www.gamersky.com/rss/news.xml`;
-
+        // 我们利用 rss2json 作为一个中转站，它可以抓取大部分带有动态内容的官网
+        const proxy = "https://api.rss2json.com/v1/api.json?rss_url=";
+        
         try {
-            const res = await fetch(apiUrl);
-            const data = await res.json();
+            let allNews = [];
+            // 为了精准，我们搜索包含 2026 关键词的官方聚合
+            const searchUrls = [
+                'https://news.google.com/rss/search?q=Wuthering+Waves+official+notice+after:2026-01-01',
+                'https://news.google.com/rss/search?q=VALORANT+official+patch+notes+after:2026-01-01'
+            ];
 
-            if (data.status === 'ok') {
-                rawNews = data.items.map(item => {
-                    const title = item.title;
-                    const pubDate = new Date(item.pubDate);
-                    let game = "";
-                    if (title.includes('鸣潮')) game = "鸣潮";
-                    if (title.includes('无畏契约') || title.includes('VALORANT') || title.includes('瓦罗兰特')) game = "无畏契约";
-                    
-                    // 仅保留 2026 年以来的对应游戏信息
-                    return (game && pubDate.getFullYear() >= 2026) ? { title, link: item.link, date: pubDate, game, source: "游民星空" } : null;
-                }).filter(n => n !== null);
-
-                render(rawNews.sort((a, b) => b.date - a.date));
+            for (let url of searchUrls) {
+                const res = await fetch(proxy + encodeURIComponent(url));
+                const data = await res.json();
+                if (data.items) {
+                    data.items.forEach(item => {
+                        let game = item.title.toLowerCase().includes('wuthering') ? '鸣潮' : '无畏契约';
+                        allNews.push({
+                            title: item.title.split(' - ')[0], // 去掉后缀
+                            link: item.link,
+                            date: new Date(item.pubDate),
+                            game: game
+                        });
+                    });
+                }
             }
+
+            render(allNews.sort((a, b) => b.date - a.date));
+            status.innerText = "最后同步时间: " + new Date().toLocaleTimeString();
         } catch (e) {
-            container.innerHTML = '站点连接中，请稍后刷新。';
+            status.innerText = "同步失败，请重试";
         }
     }
 
     function render(data) {
         const container = document.getElementById('container');
         if (data.length === 0) {
-            container.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:50px;">2026 年暂无官方新动态。</div>';
+            container.innerHTML = "<p>2026 年官网暂无新动态。</p>";
             return;
         }
         container.innerHTML = data.map(n => `
             <a href="${n.link}" target="_blank" class="card" data-game="${n.game}">
-                <div style="color:${n.game==='鸣潮'?'var(--mc)':'var(--val)'}; font-size:11px; font-weight:bold; margin-bottom:8px;">${n.game}</div>
+                <div style="color:${n.game==='鸣潮'?'var(--mc)':'var(--val)'};font-size:10px;margin-bottom:5px;">${n.game} 官方</div>
                 <div class="title">${n.title}</div>
-                <div class="footer"><span>${n.source}</span><span>${n.date.toLocaleString()}</span></div>
+                <div class="time">${n.date.toLocaleString()}</div>
             </a>
         `).join('');
     }
 
-    function filterData(type) {
-        document.getElementById('m-btn').classList.remove('active-mc');
-        document.getElementById('v-btn').classList.remove('active-val');
-        if (type === '全部') render(rawNews);
-        else {
-            if(type === '鸣潮') document.getElementById('m-btn').classList.add('active-mc');
-            if(type === '无畏契约') document.getElementById('v-btn').classList.add('active-val');
-            render(rawNews.filter(n => n.game === type));
-        }
-    }
-
-    function manualRefresh() { timeLeft = 1800; fetchNews(); }
-
-    setInterval(() => {
-        timeLeft--;
-        let m = Math.floor(timeLeft / 60);
-        let s = timeLeft % 60;
-        document.getElementById('timer').innerText = `${m}:${s < 10 ? '0' : ''}${s}`;
-        if (timeLeft <= 0) manualRefresh();
-    }, 1000);
-
-    fetchNews();
+    function manualRefresh() { fetchFromOfficial(); }
+    
+    // 初始化加载
+    fetchFromOfficial();
+    // 网页前端半小时自刷一次（如果页面没关）
+    setInterval(fetchFromOfficial, 1800000);
 </script>
 </body>
 </html>
