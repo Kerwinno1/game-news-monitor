@@ -2,50 +2,37 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>2026 官网动态追踪：鸣潮 | 无畏契约 | 星铁</title>
+    <title>2026 官网全能监控站</title>
     <style>
         :root { --mc: #00f2ff; --val: #ff4655; --hsr: #d2aa6d; --bg: #0d1117; }
-        body { background: var(--bg); color: #c9d1d9; font-family: "Microsoft YaHei", sans-serif; margin: 0; padding: 20px; }
-        
-        /* 顶部导航与筛选 */
+        body { background: var(--bg); color: #c9d1d9; font-family: sans-serif; margin: 0; padding: 20px; }
         header { border-bottom: 1px solid #30363d; padding-bottom: 15px; margin-bottom: 20px; position: sticky; top: 0; background: var(--bg); z-index: 100; }
-        .info-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
-        .filter-bar { display: flex; gap: 8px; flex-wrap: wrap; }
-        
-        /* 按钮样式 */
-        .btn { padding: 8px 14px; border-radius: 6px; cursor: pointer; border: 1px solid #444; background: #21262d; color: white; font-weight: bold; transition: 0.2s; }
-        .btn:hover { border-color: #8b949e; }
-        .active-all { border-color: #f0f6fc; box-shadow: 0 0 5px white; }
+        .info-row { display: flex; justify-content: space-between; align-items: center; }
+        .filter-bar { display: flex; gap: 8px; margin-top: 15px; }
+        .btn { padding: 8px 15px; border-radius: 6px; cursor: pointer; border: 1px solid #444; background: #21262d; color: white; transition: 0.2s; }
+        .active-all { border-color: #f0f6fc; }
         .active-mc { border-color: var(--mc); color: var(--mc); }
         .active-val { border-color: var(--val); color: var(--val); }
         .active-hsr { border-color: var(--hsr); color: var(--hsr); }
-        .btn-refresh { background: #238636; border: none; margin-left: auto; }
-
-        /* 卡片布局 */
-        .news-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 15px; }
-        .card { background: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 18px; text-decoration: none; color: inherit; transition: 0.3s; display: block; border-left: 5px solid transparent; }
-        .card:hover { transform: translateY(-5px); border-color: #8b949e; background: #1c2128; }
-        
+        .btn-refresh { background: #238636; border: none; font-weight: bold; }
+        .news-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 15px; }
+        .card { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 15px; text-decoration: none; color: inherit; display: block; border-left: 4px solid transparent; }
         .card[data-game="鸣潮"] { border-left-color: var(--mc); }
         .card[data-game="无畏契约"] { border-left-color: var(--val); }
         .card[data-game="星铁"] { border-left-color: var(--hsr); }
-        
-        .title { font-size: 15px; font-weight: bold; line-height: 1.4; margin-bottom: 12px; height: 42px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-        .footer { font-size: 11px; color: #8b949e; display: flex; justify-content: space-between; }
-        #timer { color: #58a6ff; font-family: monospace; }
+        .title { font-size: 14px; font-weight: bold; margin-bottom: 10px; height: 40px; overflow: hidden; }
+        .time { font-size: 11px; color: #8b949e; }
     </style>
 </head>
 <body>
-
 <header>
     <div class="info-row">
         <div>
-            <h2 style="margin:0; font-size: 20px;">📡 2026 官网动态监控系统</h2>
-            <small>自动同步倒计时: <b id="timer">30:00</b></small>
+            <h2 style="margin:0;">📡 2026 官网动态站</h2>
+            <small id="status">正在同步：鸣潮 | 无畏契约 | 星铁</small>
         </div>
         <button class="btn btn-refresh" onclick="manualRefresh()">立即同步官网数据</button>
     </div>
-    
     <div class="filter-bar">
         <button class="btn active-all" id="btn-all" onclick="filterData('全部')">全部</button>
         <button class="btn" id="btn-mc" onclick="filterData('鸣潮')">只看鸣潮</button>
@@ -53,109 +40,75 @@
         <button class="btn" id="btn-hsr" onclick="filterData('星铁')">只看星铁</button>
     </div>
 </header>
-
-<div class="news-grid" id="container">正在建立 2026 官方情报连接...</div>
+<div class="news-grid" id="container">建立 2026 官方连接中...</div>
 
 <script>
     let allNews = [];
-    let timeLeft = 1800;
-
-    // 抓取逻辑：聚合三个官网的资讯
-    async function fetchGameNews() {
-        const container = document.getElementById('container');
-        const timerText = document.getElementById('timer');
+    async function fetchNews() {
+        const status = document.getElementById('status');
+        status.innerText = "正在巡逻三大官网...";
         
-        // 使用针对 2026 年优化的多重数据源，确保不遗漏官网公告
-        const rssProxy = "https://api.rss2json.com/v1/api.json?rss_url=";
-        const sources = [
-            'https://www.gamersky.com/rss/news.xml', // 游民星空（官网动态同步最快）
-            'https://www.3dmgame.com/rss/news.xml'   // 3DM
-        ];
+        // 抓取源：使用 rss2json 转换器，并添加时间戳防止缓存
+        const proxy = "https://api.rss2json.com/v1/api.json?rss_url=";
+        const timestamp = new Date().getTime();
+        const rssUrl = `https://www.gamersky.com/rss/news.xml?t=${timestamp}`;
 
         try {
-            let combined = [];
-            for (let s of sources) {
-                const res = await fetch(rssProxy + encodeURIComponent(s));
-                const data = await res.json();
-                
-                if (data.items) {
-                    data.items.forEach(item => {
-                        const title = item.title;
-                        const pubDate = new Date(item.pubDate);
-                        
-                        // 1. 过滤 2026 年以来的信息
-                        if (pubDate.getFullYear() >= 2026) {
-                            let game = "";
-                            if (title.includes('鸣潮')) game = "鸣潮";
-                            if (title.match(/无畏契约|瓦罗兰特|VALORANT/i)) game = "无畏契约";
-                            if (title.match(/崩坏：星穹铁道|星穹铁道|崩铁|HSR/i)) game = "星铁";
-
-                            if (game) {
-                                combined.push({ title, link: item.link, date: pubDate, game });
-                            }
-                        }
-                    });
-                }
+            const res = await fetch(proxy + encodeURIComponent(rssUrl));
+            const data = await res.json();
+            if (data.status === 'ok') {
+                allNews = data.items.map(item => {
+                    const title = item.title;
+                    const pubDate = new Date(item.pubDate);
+                    // 核心过滤：2026年以后
+                    if (pubDate.getFullYear() >= 2026) {
+                        let game = "";
+                        if (title.includes('鸣潮')) game = "鸣潮";
+                        if (title.match(/无畏契约|瓦罗兰特|VALORANT/i)) game = "无畏契约";
+                        if (title.match(/星穹铁道|崩铁|HSR/i)) game = "星铁";
+                        return game ? { title, link: item.link, date: pubDate, game } : null;
+                    }
+                    return null;
+                }).filter(n => n !== null);
+                render(allNews);
+                status.innerText = "同步成功：" + new Date().toLocaleTimeString();
             }
-            
-            // 按时间排序并去重
-            allNews = combined.sort((a, b) => b.date - a.date);
-            render(allNews);
         } catch (e) {
-            container.innerHTML = '官方线路繁忙，请稍后手动刷新。';
+            status.innerText = "同步失败，请检查网络";
         }
     }
 
     function render(data) {
         const container = document.getElementById('container');
         if (data.length === 0) {
-            container.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 50px;">2026 年官网暂无新动态更新。</div>';
+            container.innerHTML = '<p style="grid-column:1/-1;text-align:center;">2026年暂无官方新动态更新。</p>';
             return;
         }
         container.innerHTML = data.map(n => `
             <a href="${n.link}" target="_blank" class="card" data-game="${n.game}">
-                <div style="color:var(--${n.game === '鸣潮' ? 'mc' : (n.game === '无畏契约' ? 'val' : 'hsr')}); font-size:11px; font-weight:bold; margin-bottom:8px;">${n.game} 官方直通</div>
+                <div style="font-size:10px;font-weight:bold;margin-bottom:5px;color:var(--${n.game==='鸣潮'?'mc':(n.game==='无畏契约'?'val':'hsr')})">${n.game}</div>
                 <div class="title">${n.title}</div>
-                <div class="footer">
-                    <span>${n.date.toLocaleDateString()}</span>
-                    <span>点击查看原文</span>
-                </div>
+                <div class="time">${n.date.toLocaleString()}</div>
             </a>
         `).join('');
     }
 
-    // 筛选按钮逻辑
     function filterData(type) {
-        document.querySelectorAll('.btn').forEach(b => b.classList.remove('active-all', 'active-mc', 'active-val', 'active-hsr'));
-        if (type === '全部') {
+        document.querySelectorAll('.btn').forEach(b => b.className = 'btn');
+        if(type === '全部') {
             document.getElementById('btn-all').classList.add('active-all');
             render(allNews);
         } else {
-            const idMap = { '鸣潮': 'btn-mc', '无畏契约': 'btn-val', '星铁': 'btn-hsr' };
-            const classMap = { '鸣潮': 'active-mc', '无畏契约': 'active-val', '星铁': 'active-hsr' };
-            document.getElementById(idMap[type]).classList.add(classMap[type]);
+            const btnMap = {'鸣潮':'btn-mc','无畏契约':'btn-val','星铁':'btn-hsr'};
+            const activeMap = {'鸣潮':'active-mc','无畏契约':'active-val','星铁':'active-hsr'};
+            document.getElementById(btnMap[type]).classList.add(activeMap[type]);
             render(allNews.filter(n => n.game === type));
         }
     }
 
-    // 手动刷新逻辑
-    function manualRefresh() {
-        timeLeft = 1800; // 重置计时器
-        fetchGameNews();
-    }
-
-    // 自动刷新倒计时
-    setInterval(() => {
-        timeLeft--;
-        let m = Math.floor(timeLeft / 60);
-        let s = timeLeft % 60;
-        document.getElementById('timer').innerText = `${m}:${s < 10 ? '0' : ''}${s}`;
-        if (timeLeft <= 0) {
-            manualRefresh();
-        }
-    }, 1000);
-
-    fetchGameNews();
+    function manualRefresh() { fetchNews(); }
+    fetchNews();
+    setInterval(fetchNews, 1800000); // 半小时刷新
 </script>
 </body>
 </html>
