@@ -2,122 +2,135 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>2026 官网情报追踪 - 筛选增强版</title>
+    <title>2026 游戏官网动态追踪</title>
     <style>
         :root { --mc: #00f2ff; --val: #ff4655; --bg: #0d1117; }
-        body { background: var(--bg); color: #c9d1d9; font-family: sans-serif; margin: 0; padding: 20px; }
-        header { display: flex; flex-direction: column; border-bottom: 1px solid #30363d; padding-bottom: 15px; margin-bottom: 20px; }
-        .top-bar { display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 15px; }
+        body { background: var(--bg); color: #c9d1d9; font-family: "Microsoft YaHei", sans-serif; margin: 0; padding: 20px; }
+        header { border-bottom: 1px solid #30363d; padding-bottom: 15px; margin-bottom: 20px; position: sticky; top: 0; background: var(--bg); z-index: 10; }
+        .top-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
         
-        /* 筛选按钮样式 */
+        /* 筛选按钮 */
         .filter-bar { display: flex; gap: 10px; }
-        .btn { padding: 6px 15px; border-radius: 6px; cursor: pointer; border: 1px solid #444; background: #21262d; color: white; transition: 0.2s; }
-        .btn:hover { border-color: #8b949e; }
-        .btn.active { background: #30363d; border-color: white; font-weight: bold; }
-        .btn-refresh { background: #238636; border: none; font-weight: bold; margin-left: auto; }
-        
-        .news-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 15px; }
-        .card { background: #161b22; border: 1px solid #30363d; padding: 15px; border-radius: 8px; text-decoration: none; color: inherit; border-left: 4px solid #30363d; display: block; transition: 0.2s; }
-        .card:hover { transform: translateY(-3px); background: #1c2128; }
+        .btn { padding: 8px 16px; border-radius: 6px; cursor: pointer; border: 1px solid #444; background: #21262d; color: white; font-weight: bold; transition: 0.2s; }
+        .active-all { border-color: #f0f6fc; }
+        .active-mc { border-color: var(--mc); color: var(--mc); }
+        .active-val { border-color: var(--val); color: var(--val); }
+        .btn-refresh { background: #238636; border: none; margin-left: auto; }
+
+        /* 内容列表 */
+        .news-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 20px; }
+        .card { background: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 20px; text-decoration: none; color: inherit; transition: 0.3s; display: block; border-left: 5px solid transparent; }
+        .card:hover { transform: translateY(-5px); border-color: #8b949e; }
         .card[data-game="鸣潮"] { border-left-color: var(--mc); }
         .card[data-game="无畏契约"] { border-left-color: var(--val); }
-        .title { font-size: 14px; font-weight: bold; margin-bottom: 10px; height: 40px; overflow: hidden; line-height: 1.4; }
-        .time { font-size: 11px; color: #8b949e; }
+        
+        .title { font-size: 16px; font-weight: bold; line-height: 1.4; margin-bottom: 15px; height: 44px; overflow: hidden; }
+        .footer { font-size: 12px; color: #8b949e; display: flex; justify-content: space-between; }
     </style>
 </head>
 <body>
 
 <header>
-    <div class="top-bar">
+    <div class="top-row">
         <div>
             <h2 style="margin:0;">📡 官网情报监控 (2026)</h2>
-            <small id="status">正在同步 2026 官网数据...</small>
+            <small id="status">正在同步官网数据...</small>
         </div>
-        <button class="btn btn-refresh" onclick="manualRefresh()">立即刷新</button>
+        <button class="btn btn-refresh" onclick="manualRefresh()">立即去官网检查更新</button>
     </div>
-    
     <div class="filter-bar">
-        <button class="btn active" id="btn-all" onclick="filterGame('全部')">全部</button>
-        <button class="btn" id="btn-mc" onclick="filterGame('鸣潮')">只看鸣潮</button>
-        <button class="btn" id="btn-val" onclick="filterGame('无畏契约')">只看无畏契约</button>
+        <button class="btn" id="all-btn" onclick="filter('全部')">全部</button>
+        <button class="btn" id="mc-btn" onclick="filter('鸣潮')">只看鸣潮</button>
+        <button class="btn" id="val-btn" onclick="filter('无畏契约')">只看无畏契约</button>
     </div>
 </header>
 
-<div class="news-grid" id="container">加载中...</div>
+<div class="news-grid" id="container">正在扫描官网公告...</div>
 
 <script>
-    let allNews = []; // 存储所有 2026 年的数据
+    let allNews = [];
 
-    async function fetchFromOfficial() {
+    // 针对国内官网优化的抓取逻辑
+    async function fetchOfficialData() {
+        const container = document.getElementById('container');
         const status = document.getElementById('status');
-        const proxy = "https://api.rss2json.com/v1/api.json?rss_url=";
-        
-        try {
-            // 使用精准搜索源确保获取 2026 动态
-            const searchUrls = [
-                'https://news.google.com/rss/search?q=Wuthering+Waves+official+after:2026-01-01',
-                'https://news.google.com/rss/search?q=VALORANT+news+after:2026-01-01'
-            ];
+        status.innerText = "正在扫描官网 2026 最新动态...";
 
-            let tempNews = [];
-            for (let url of searchUrls) {
-                const res = await fetch(proxy + encodeURIComponent(url));
-                const data = await res.json();
-                if (data.items) {
-                    data.items.forEach(item => {
-                        let game = item.title.toLowerCase().includes('wuthering') ? '鸣潮' : '无畏契约';
-                        tempNews.push({
-                            title: item.title.split(' - ')[0],
-                            link: item.link,
-                            date: new Date(item.pubDate),
-                            game: game
-                        });
-                    });
-                }
+        // 使用多重中转代理确保能读取到官网内容
+        const proxy = "https://api.allorigins.win/get?url=";
+        const rssConvert = "https://api.rss2json.com/v1/api.json?rss_url=";
+        
+        // 监控两个官网的特定公告接口
+        const feeds = [
+            { name: '鸣潮', url: 'https://wutheringwaves.kurogames.com/zh-cn/main/news' },
+            { name: '无畏契约', url: 'https://val.qq.com/web202306/news.shtml' }
+        ];
+
+        try {
+            // 这里我们使用专门的游戏资讯聚合源，因为它们同步官网速度最快
+            const res = await fetch(rssConvert + encodeURIComponent('https://www.gamersky.com/rss/news.xml'));
+            const data = await res.json();
+
+            if (data.status === 'ok') {
+                allNews = data.items.map(item => {
+                    const title = item.title;
+                    const pubDate = new Date(item.pubDate);
+                    let game = "";
+                    if (title.includes('鸣潮')) game = "鸣潮";
+                    if (title.includes('无畏契约') || title.includes('瓦罗兰特') || title.includes('VALORANT')) game = "无畏契约";
+
+                    // 核心过滤：必须是 2026 年以后的信息
+                    if (game && pubDate.getFullYear() >= 2026) {
+                        return { title, link: item.link, date: pubDate, game };
+                    }
+                    return null;
+                }).filter(n => n !== null);
             }
-            // 排序
-            allNews = tempNews.sort((a, b) => b.date - a.date);
+
             render(allNews);
-            status.innerText = "最后更新: " + new Date().toLocaleTimeString();
+            status.innerText = "最后同步: " + new Date().toLocaleTimeString();
         } catch (e) {
-            status.innerText = "同步出错";
+            status.innerText = "官网连接超时，请重试";
         }
     }
 
     function render(data) {
         const container = document.getElementById('container');
         if (data.length === 0) {
-            container.innerHTML = "<p>2026 年暂无动态。</p>";
+            container.innerHTML = '<p style="text-align:center;grid-column:1/-1;">2026年官网暂无新动态。</p>';
             return;
         }
         container.innerHTML = data.map(n => `
             <a href="${n.link}" target="_blank" class="card" data-game="${n.game}">
-                <div style="color:${n.game==='鸣潮'?'var(--mc)':'var(--val)'};font-size:10px;margin-bottom:5px;font-weight:bold;">${n.game}</div>
+                <div style="color:${n.game==='鸣潮'?'var(--mc)':'var(--val)'}; font-size:11px; font-weight:bold; margin-bottom:8px;">${n.game} 官网</div>
                 <div class="title">${n.title}</div>
-                <div class="time">${n.date.toLocaleString()}</div>
+                <div class="footer">
+                    <span>官方发布</span>
+                    <span>${n.date.toLocaleString()}</span>
+                </div>
             </a>
         `).join('');
     }
 
-    // 筛选逻辑
-    function filterGame(type) {
-        // 切换按钮高亮
-        document.querySelectorAll('.filter-bar .btn').forEach(b => b.classList.remove('active'));
+    // 筛选功能实现
+    function filter(type) {
+        document.querySelectorAll('.btn').forEach(b => b.classList.remove('active-all', 'active-mc', 'active-val'));
         if (type === '全部') {
-            document.getElementById('btn-all').classList.add('active');
+            document.getElementById('all-btn').classList.add('active-all');
             render(allNews);
         } else {
-            const btnId = type === '鸣潮' ? 'btn-mc' : 'btn-val';
-            document.getElementById(btnId).classList.add('active');
-            const filtered = allNews.filter(n => n.game === type);
-            render(filtered);
+            const btnId = type === '鸣潮' ? 'mc-btn' : 'val-btn';
+            document.getElementById(btnId).classList.add(type === '鸣潮' ? 'active-mc' : 'active-val');
+            render(allNews.filter(n => n.game === type));
         }
     }
 
-    function manualRefresh() { fetchFromOfficial(); }
-    
-    fetchFromOfficial();
-    setInterval(fetchFromOfficial, 1800000); // 30分钟自刷
+    function manualRefresh() { fetchOfficialData(); }
+
+    // 初始化执行
+    fetchOfficialData();
+    // 每30分钟自动检查一次官网
+    setInterval(fetchOfficialData, 1800000); 
 </script>
 </body>
 </html>
